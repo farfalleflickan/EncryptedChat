@@ -159,7 +159,7 @@ public class Server implements Runnable {
 
             private final SSLSocket mySocket;
             private PrivateKey privKey;
-            private final PublicKey pubKey;
+            private PublicKey pubKey;
             private SecretKey AESkey;
             private SecretKey cAES;
             private PublicKey cRSA;
@@ -271,6 +271,7 @@ public class Server implements Runnable {
                 }
                 keyGen.initialize(2048);
                 privKey = keyGen.genKeyPair().getPrivate();
+                pubKey = keyGen.genKeyPair().getPublic();
             }
 
             private void getPubKey() {

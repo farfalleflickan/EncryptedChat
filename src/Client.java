@@ -46,15 +46,16 @@ public class Client implements Runnable {
 
         private SSLSocket srvSocket;
         private PrivateKey privKey;
-        private final PublicKey pubKey;
+        private PublicKey pubKey;
         private SecretKey AESkey;
         private SecretKey srvAES;
         private PublicKey srvKey;
         private String myID;
-        private boolean running;
+        private boolean running, reset;
+        private Thread InThread;
 
         public TCPClient() {
-
+            reset = false;
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
             try {
@@ -85,6 +86,41 @@ public class Client implements Runnable {
             } while (input.isEmpty());
             System.out.print("Enter a username for this session: ");
             myID = new Scanner(System.in).nextLine();
+        }
+
+        private void reset() {
+            reset = false;
+            KeyPairGenerator keyGen = null;
+            KeyGenerator AESkeyGen = null;
+            try {
+                keyGen = KeyPairGenerator.getInstance("RSA");
+                SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+                keyGen.initialize(2048, random);
+                AESkeyGen = KeyGenerator.getInstance("AES");
+                AESkeyGen.init(128, random);
+            } catch (NoSuchAlgorithmException ex) {
+                Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            KeyPair pair = keyGen.genKeyPair();
+            privKey = pair.getPrivate();
+            pubKey = pair.getPublic();
+            AESkey = AESkeyGen.generateKey();
+            System.out.print("Enter server adress: ");
+            srvIP = new Scanner(System.in).next();
+            String input;
+            do {
+                System.out.print("Enter server port: ");
+                input = new Scanner(System.in).next();
+                if (input.matches("[0-9]+")) {
+                    srvPort = Integer.parseUnsignedInt(input);
+                } else {
+                    System.out.println("Input invalid! Input a valid port!");
+                    input = "";
+                }
+            } while (input.isEmpty());
+            System.out.print("Enter a username for this session: ");
+            myID = new Scanner(System.in).nextLine();
+            this.run();
         }
 
         private void start() {
@@ -130,7 +166,7 @@ public class Client implements Runnable {
             System.out.println("ALL SYSTEMS NORMAL!");
             System.out.println(getStr());
             running = true;
-            Thread InThread = new Thread(new Runnable() {
+            InThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
@@ -171,7 +207,11 @@ public class Client implements Runnable {
             }
             keyGen.initialize(2048);
             privKey = keyGen.genKeyPair().getPrivate();
+            pubKey = keyGen.genKeyPair().getPublic();
             System.out.println("KEYS DELETED!");
+            if (reset) {
+                reset();
+            }
         }
 
         private void sendRSAKey() {
@@ -274,9 +314,13 @@ public class Client implements Runnable {
         }
 
         private void sendStr(String str) {
-            if (str.matches("!quit") || str.matches("!disconnect")) {
+            if (str.matches("!quit")) {
                 System.out.println("You have disconnected!");
                 running = false;
+            } else if (str.matches("!disconnect")) {
+                System.out.println("You have disconnected!");
+                running = false;
+                reset = true;
             } else {
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());

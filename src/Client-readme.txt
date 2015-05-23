@@ -1,2 +1,3 @@
 Available commands for the client:
-!quit or !disconnect to disconnect from server and quit the program
+!quit to disconnect from the server and quit the program
+!disconnect to disconnect from the server and reconnect to another
