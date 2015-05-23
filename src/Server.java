@@ -2,12 +2,15 @@
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramSocket;
-import java.net.MalformedURLException;
 import java.net.SocketException;
 import java.net.URL;
 import java.security.InvalidKeyException;
@@ -23,9 +26,12 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -33,6 +39,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -55,9 +62,52 @@ public class Server implements Runnable {
         private Map<SSLSocket, String> usersL;
         private Map<SSLSocket, String> toSend;
         private ArrayList<String> srvMsg;
+        private String greetingStr;
 
-        public TCPServer(int port) {
+        public TCPServer() {
+            int port = 0;
+            String str = "";
+            FileInputStream fIn = null;
+            try {
+                fIn = new FileInputStream(new File(".\\src\\settings.conf"));
+                BufferedReader bR = new BufferedReader(new InputStreamReader(fIn));
+                String line = null;
+                for (int i = 0; (line = bR.readLine()) != null;) {
+                    Matcher matcher = Pattern.compile("\"(.+?)\"").matcher(line);
+                    matcher.find();
+                    if (i == 0) {
+                        port = Integer.parseInt(matcher.group(1));
+                        i++;
+                    } else if (i == 1) {
+                        str = matcher.group(1);
+                        i++;
+                    } else if (i == 2) {
+                        if (Integer.parseInt(matcher.group(1)) == 1) {
+                            str += new BufferedReader(new InputStreamReader(new URL("http://checkip.amazonaws.com").openStream())).readLine();
+                            i++;
+                        } else {
+                            i += 2;
+                        }
+                    } else if (i == 3) {
+                        str += matcher.group(1);
+                    }
+                }
+            } catch (IllegalStateException ex) {
+                System.out.println("ERROR in the configuration file!");
+                System.exit(0);
+            } catch (FileNotFoundException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            } finally {
+                try {
+                    fIn.close();
+                } catch (IOException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
             srvPort = port;
+            greetingStr = str;
             usersL = new HashMap<>();
             toSend = new HashMap<>();
             srvMsg = new ArrayList<>();
@@ -108,9 +158,9 @@ public class Server implements Runnable {
         private class TCPClientThread implements Runnable {
 
             private final SSLSocket mySocket;
-            private final PrivateKey privKey;
+            private PrivateKey privKey;
             private final PublicKey pubKey;
-            private final SecretKey AESkey;
+            private SecretKey AESkey;
             private SecretKey cAES;
             private PublicKey cRSA;
             private String userID;
@@ -133,7 +183,7 @@ public class Server implements Runnable {
                     keyGen = KeyPairGenerator.getInstance("RSA");
                     keyGen.initialize(2048, random);
                     AESkeyGen = KeyGenerator.getInstance("AES");
-                    AESkeyGen.init(128);
+                    AESkeyGen.init(128, random);
                 } catch (NoSuchAlgorithmException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -156,18 +206,13 @@ public class Server implements Runnable {
                 getAESKey();
                 System.out.println("SERVER: AES double encrypted received & decrypted!");
                 getUserID();
+                System.out.println("ID \"" + userID + "\" received!");
                 synchronized (srvMsg) {
-                    srvMsg.add(userID+" has connected!");
+                    srvMsg.add(userID + " has connected!");
                 }
                 running = true;
-                try {
-                    sendStr("WELCOME TO " + new BufferedReader(new InputStreamReader(new URL("http://checkip.amazonaws.com").openStream())).readLine());
-                } catch (MalformedURLException ex) {
-                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-                } catch (IOException ex) {
-                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-                }
-                new Thread(new Runnable() {
+                sendStr(greetingStr);
+                Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         while (running) {
@@ -177,16 +222,12 @@ public class Server implements Runnable {
                             }
                         }
                     }
-                }).start();
+                });
+                InThread.start();
                 while (running) {
                     if (usersL.size() > 1 && toSend.isEmpty() == false) {
                         synchronized (toSend) {
                             myL = (HashMap<SSLSocket, String>) toSend;
-//                            for (Entry ent : toSend.entrySet()) {
-//                                if (ent.getKey() != mySocket) {
-//                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue());
-//                                }
-//                            }
                         }
                         Iterator it = toSend.entrySet().iterator();
                         while (it.hasNext()) {
@@ -209,9 +250,27 @@ public class Server implements Runnable {
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException ex) {
-                        Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
+                InThread.interrupt();
+                try {
+                    userID = "";
+                    mySocket.close();
+                } catch (IOException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                byte[] zero = new byte[1];
+                AESkey = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
+                cAES = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
+                KeyPairGenerator keyGen = null;
+                try {
+                    keyGen = KeyPairGenerator.getInstance("RSA");
+                } catch (NoSuchAlgorithmException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                keyGen.initialize(2048);
+                privKey = keyGen.genKeyPair().getPrivate();
             }
 
             private void getPubKey() {
@@ -247,7 +306,7 @@ public class Server implements Runnable {
                         sOut.flush();
                     }
                 } catch (IOException ex) {
-                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
 
@@ -305,7 +364,7 @@ public class Server implements Runnable {
                     System.arraycopy(serByteObj4, 0, fObj, serByteObj1.length + serByteObj2.length + serByteObj3.length, serByteObj4.length);
                     cAES = (SecretKey) new ObjectInputStream(new ByteArrayInputStream(dcipher2.doFinal(fObj))).readObject();
                 } catch (IOException | ClassNotFoundException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
-                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
 
@@ -319,7 +378,7 @@ public class Server implements Runnable {
                     sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
                     sOut.flush();
                 } catch (IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
-                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
 
@@ -330,15 +389,15 @@ public class Server implements Runnable {
                     cipher1.init(Cipher.DECRYPT_MODE, cAES);
                     cipher2.init(Cipher.DECRYPT_MODE, AESkey);
                     return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())));
-                } catch (SocketException ex) {
-                    System.out.println(mySocket.getInetAddress().getHostName() + " disconnected!");
+                } catch (SocketException | EOFException ex) {
+                    System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
                     srvMsg.add("SERVER: " + userID + " disconnected!");
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
                     running = false;
                 } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | IOException | ClassNotFoundException ex) {
-                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
                 return "";
             }
