@@ -26,6 +26,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 
@@ -52,7 +53,7 @@ public class Client implements Runnable {
         private PublicKey srvKey;
         private String myID;
         private boolean running, reset;
-        private Thread InThread;
+        private Thread InThread, OutThread;
 
         public TCPClient() {
             reset = false;
@@ -89,6 +90,22 @@ public class Client implements Runnable {
         }
 
         private void reset() {
+            if (!InThread.isInterrupted()) {
+                InThread.interrupt();
+                try {
+                    InThread.join();
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            if (!OutThread.isInterrupted()) {
+                OutThread.interrupt();
+                try {
+                    OutThread.join();
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
             reset = false;
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
@@ -105,6 +122,8 @@ public class Client implements Runnable {
             privKey = pair.getPrivate();
             pubKey = pair.getPublic();
             AESkey = AESkeyGen.generateKey();
+            srvAES = null;
+            srvKey = null;
             System.out.print("Enter server adress: ");
             srvIP = new Scanner(System.in).next();
             String input;
@@ -132,7 +151,7 @@ public class Client implements Runnable {
                     srvSocket.setEnabledCipherSuites(new String[]{"SSL_DH_anon_WITH_RC4_128_MD5"});
 
                     disconnect = false;
-                } catch (IOException ex) {
+                } catch (IOException | IllegalArgumentException ex) {
                     disconnect = true;
                     System.out.print("Can not reach the server, please enter another ip: ");
                     srvIP = new Scanner(System.in).next();
@@ -162,10 +181,10 @@ public class Client implements Runnable {
             System.out.println("CLIENT: AES double encrypted received & decrypted!");
             sendAESKey();
             System.out.println("CLIENT: AES double encrypted sent!");
+            running = true;
             sendStr(myID);
             System.out.println("ALL SYSTEMS NORMAL!");
             System.out.println(getStr());
-            running = true;
             InThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -180,14 +199,26 @@ public class Client implements Runnable {
                         } catch (InterruptedException ex) {
                         }
                     }
+                    OutThread.interrupt();
+                }
+            });
+            OutThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (running) {
+                        sendStr(new Scanner(System.in).nextLine());
+                    }
+                    InThread.interrupt();
                 }
             });
             InThread.start();
+            OutThread.start();
             while (running) {
-                sendStr(new Scanner(System.in).nextLine());
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ex) {
+                }
             }
-            InThread.interrupt();
-
             try {
                 srvSocket.close();
             } catch (IOException ex) {
@@ -196,12 +227,17 @@ public class Client implements Runnable {
             myID = "";
             srvIP = "";
             srvPort = 0;
-            byte[] zero = new byte[1];
-            AESkey = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
-            srvAES = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
+
             KeyPairGenerator keyGen = null;
+            KeyGenerator AESkeyGen = null;
             try {
                 keyGen = KeyPairGenerator.getInstance("RSA");
+                SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+                keyGen.initialize(2048, random);
+                AESkeyGen = KeyGenerator.getInstance("AES");
+                AESkeyGen.init(128, random);
+                AESkey = AESkeyGen.generateKey();
+                srvAES = AESkeyGen.generateKey();
             } catch (NoSuchAlgorithmException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -314,14 +350,14 @@ public class Client implements Runnable {
         }
 
         private void sendStr(String str) {
-            if (str.matches("!quit")) {
+            if (str.matches("!quit") || str.matches("!q")) {
                 System.out.println("You have disconnected!");
                 running = false;
-            } else if (str.matches("!disconnect")) {
+            } else if (str.matches("!disconnect") || str.matches("!dc")) {
                 System.out.println("You have disconnected!");
                 running = false;
                 reset = true;
-            } else {
+            } else if ((!str.isEmpty() || str != null) && running) {
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
@@ -330,6 +366,11 @@ public class Client implements Runnable {
                     ObjectOutputStream sOut = new ObjectOutputStream(srvSocket.getOutputStream());
                     sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
                     sOut.flush();
+                } catch (SSLException ex) {
+                    if (running) {
+                        System.out.println("You have been disconnected from the server!");
+                        running = false;
+                    }
                 } catch (IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
                     Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -346,6 +387,13 @@ public class Client implements Runnable {
             } catch (SocketException ex) {
                 if (running) {
                     System.out.println("You have been disconnected from the server!");
+                    running = false;
+                }
+                reset = true;
+            } catch (SSLException ex) {
+                if (running) {
+                    System.out.println("You have been disconnected from the server!");
+                    running = false;
                 }
             } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | IOException | ClassNotFoundException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);

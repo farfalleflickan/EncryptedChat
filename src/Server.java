@@ -59,10 +59,10 @@ public class Server implements Runnable {
     public static class TCPServer extends Server {
 
         private SSLServerSocket srvSocket;
-        private Map<SSLSocket, String> usersL;
-        private Map<SSLSocket, String> toSend;
-        private ArrayList<String> srvMsg;
-        private String greetingStr;
+        private final Map<SSLSocket, String> usersL;
+        private final Map<SSLSocket, String> toSend;
+        private final ArrayList<String> srvMsg;
+        private final String greetingStr;
 
         public TCPServer() {
             int port = 0;
@@ -204,14 +204,12 @@ public class Server implements Runnable {
                 sendAESKey();
                 System.out.println("SERVER: AES double encrypted sent!");
                 getAESKey();
+                running = true;
                 System.out.println("SERVER: AES double encrypted received & decrypted!");
                 getUserID();
-                System.out.println("ID \"" + userID + "\" received!");
-                synchronized (srvMsg) {
-                    srvMsg.add(userID + " has connected!");
-                }
-                running = true;
+                System.out.println("ID \"" + userID + "\" received from IP: " + mySocket.getInetAddress().getHostAddress());
                 sendStr(greetingStr);
+                listConnected();
                 Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -255,23 +253,33 @@ public class Server implements Runnable {
                 }
                 InThread.interrupt();
                 try {
-                    userID = "";
+                    InThread.join();
+                } catch (InterruptedException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+                try {
                     mySocket.close();
                 } catch (IOException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
-                byte[] zero = new byte[1];
-                AESkey = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
-                cAES = new SecretKeySpec(zero, Integer.toString(new Random().nextInt()));
+                userID = "";
                 KeyPairGenerator keyGen = null;
+                KeyGenerator AESkeyGen = null;
                 try {
+                    SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
                     keyGen = KeyPairGenerator.getInstance("RSA");
+                    keyGen.initialize(2048, random);
+                    AESkeyGen = KeyGenerator.getInstance("AES");
+                    AESkeyGen.init(128, random);
+                    keyGen.initialize(2048);
+                    privKey = keyGen.genKeyPair().getPrivate();
+                    pubKey = keyGen.genKeyPair().getPublic();
+                    AESkey = AESkeyGen.generateKey();
+                    cAES = AESkeyGen.generateKey();
                 } catch (NoSuchAlgorithmException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
-                keyGen.initialize(2048);
-                privKey = keyGen.genKeyPair().getPrivate();
-                pubKey = keyGen.genKeyPair().getPublic();
+
             }
 
             private void getPubKey() {
@@ -279,6 +287,7 @@ public class Server implements Runnable {
                     try {
                         ObjectInputStream sIn = new ObjectInputStream(mySocket.getInputStream());
                         cRSA = (PublicKey) sIn.readObject();
+                        
                     } catch (IOException | ClassNotFoundException ex) {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -378,6 +387,13 @@ public class Server implements Runnable {
                     ObjectOutputStream sOut = new ObjectOutputStream(mySocket.getOutputStream());
                     sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
                     sOut.flush();
+                } catch (SocketException | EOFException ex) {
+                    System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
+                    srvMsg.add("SERVER: " + userID + " disconnected!");
+                    synchronized (usersL) {
+                        usersL.remove(mySocket);
+                    }
+                    running = false;
                 } catch (IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -408,6 +424,20 @@ public class Server implements Runnable {
                 synchronized (usersL) {
                     usersL.put(mySocket, userID);
                 }
+            }
+
+            private void listConnected() {
+                String str1 = "Connected users: ";
+                String str2 = "";
+                synchronized (usersL) {
+                    Iterator it = usersL.entrySet().iterator();
+                    while (it.hasNext()) {
+                        Entry ent = (Entry) it.next();
+                        str2 += usersL.get(ent.getKey()) + ", ";
+                    }
+                }
+                str2 = str2.substring(0, str2.length() - 2);
+                sendStr(str1 + str2);
             }
         }
     }
