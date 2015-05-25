@@ -131,7 +131,7 @@ public class Server implements Runnable {
                         System.out.print("Input a new port: ");
                         input = new Scanner(System.in).next();
                         if (input.matches("[0-9]+")) {
-                            srvPort = Integer.parseUnsignedInt(input);
+                            srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
                             input = "";
@@ -167,6 +167,7 @@ public class Server implements Runnable {
             private HashMap<SSLSocket, String> myL;
             private ArrayList<String> mySrvL;
             private boolean running;
+            private long myTime;
 
             private TCPClientThread(SSLSocket s) {
                 mySocket = s;
@@ -204,19 +205,27 @@ public class Server implements Runnable {
                 sendAESKey();
                 System.out.println("SERVER: AES double encrypted sent!");
                 getAESKey();
-                running = true;
                 System.out.println("SERVER: AES double encrypted received & decrypted!");
+                running = true;
+                myTime = (System.currentTimeMillis() / 1000L);
                 getUserID();
                 System.out.println("ID \"" + userID + "\" received from IP: " + mySocket.getInetAddress().getHostAddress());
-                sendStr(greetingStr);
+                sendStr(greetingStr + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
                 listConnected();
                 Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         while (running) {
                             String input = getStr();
-                            synchronized (toSend) {
-                                toSend.put(mySocket, input);
+                            if ((!input.isEmpty() || input != null) && input.trim().length() > 0) {
+                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(input);
+                                matcher.find();
+                                input = (String) input.subSequence(0, matcher.start(0));
+                                if (Integer.parseInt(matcher.group(1)) < myTime) {
+                                    synchronized (toSend) {
+                                        toSend.put(mySocket, input);
+                                    }
+                                }
                             }
                         }
                     }
@@ -232,7 +241,8 @@ public class Server implements Runnable {
                             Entry ent = (Entry) it.next();
                             if (ent.getKey() != mySocket) {
                                 synchronized (usersL) {
-                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue());
+                                    String time = "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue() + time);
                                     it.remove();
                                 }
                             }
@@ -287,7 +297,7 @@ public class Server implements Runnable {
                     try {
                         ObjectInputStream sIn = new ObjectInputStream(mySocket.getInputStream());
                         cRSA = (PublicKey) sIn.readObject();
-                        
+
                     } catch (IOException | ClassNotFoundException ex) {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -389,7 +399,7 @@ public class Server implements Runnable {
                     sOut.flush();
                 } catch (SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-                    srvMsg.add("SERVER: " + userID + " disconnected!");
+                    srvMsg.add("SERVER: " + userID + " disconnected!" + (System.currentTimeMillis() / 1000L));
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
@@ -421,6 +431,9 @@ public class Server implements Runnable {
 
             private void getUserID() {
                 userID = getStr();
+                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(userID);
+                matcher.find();
+                userID = (String) userID.subSequence(0, matcher.start(0));
                 synchronized (usersL) {
                     usersL.put(mySocket, userID);
                 }
@@ -437,7 +450,8 @@ public class Server implements Runnable {
                     }
                 }
                 str2 = str2.substring(0, str2.length() - 2);
-                sendStr(str1 + str2);
+                String time = "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+                sendStr(str1 + str2 + time);
             }
         }
     }
@@ -445,7 +459,7 @@ public class Server implements Runnable {
     public static class UDPServer extends Server {
 
         private DatagramSocket srvSocket;
-
+        
         public UDPServer(int port) {
             srvPort = port;
         }
@@ -465,7 +479,7 @@ public class Server implements Runnable {
                         System.out.print("Input a new port: ");
                         input = new Scanner(System.in).next();
                         if (input.matches("[0-9]+")) {
-                            srvPort = Integer.parseUnsignedInt(input);
+                            srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
                             input = "";

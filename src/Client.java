@@ -13,11 +13,14 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Timestamp;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -79,7 +82,7 @@ public class Client implements Runnable {
                 System.out.print("Enter server port: ");
                 input = new Scanner(System.in).next();
                 if (input.matches("[0-9]+")) {
-                    srvPort = Integer.parseUnsignedInt(input);
+                    srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
                     input = "";
@@ -131,7 +134,7 @@ public class Client implements Runnable {
                 System.out.print("Enter server port: ");
                 input = new Scanner(System.in).next();
                 if (input.matches("[0-9]+")) {
-                    srvPort = Integer.parseUnsignedInt(input);
+                    srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
                     input = "";
@@ -160,7 +163,7 @@ public class Client implements Runnable {
                         System.out.print("Input a new port: ");
                         input = new Scanner(System.in).next();
                         if (input.matches("[0-9]+")) {
-                            srvPort = Integer.parseUnsignedInt(input);
+                            srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
                             input = "";
@@ -184,34 +187,49 @@ public class Client implements Runnable {
             running = true;
             sendStr(myID);
             System.out.println("ALL SYSTEMS NORMAL!");
-            System.out.println(getStr());
+            String grtStr = getStr();
+            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(grtStr);
+            matcher.find();
+            grtStr = (String) grtStr.subSequence(0, matcher.start(0));
+            System.out.println(grtStr);
             InThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
+                        System.out.println("GETTING INPUT");
                         String s = getStr();
-                        if (!s.isEmpty() || s != null) {
-                            System.out.println(s);
-                        }
-
-                        try {
-                            Thread.sleep(500);
-                        } catch (InterruptedException ex) {
+                        System.out.println("S    "+s);
+                        if (s.trim().length() > 0 && (!s.isEmpty() && s != null)) {
+                            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
+                            matcher.find();
+                            s = (String) s.subSequence(0, matcher.start(0));
+                            if (Integer.parseInt(matcher.group(1)) > (System.currentTimeMillis() / 1000L)) {
+                                System.out.println(s);
+                                
+                                try {
+                                    Thread.sleep(500);
+                                } catch (InterruptedException ex) {
+                                }
+                            }
                         }
                     }
                     OutThread.interrupt();
                 }
-            });
+            }
+            );
             OutThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
+                        System.out.println("SENDING INPUT");
                         sendStr(new Scanner(System.in).nextLine());
                     }
                     InThread.interrupt();
                 }
             });
+
             InThread.start();
+
             OutThread.start();
             while (running) {
                 try {
@@ -219,6 +237,7 @@ public class Client implements Runnable {
                 } catch (InterruptedException ex) {
                 }
             }
+
             try {
                 srvSocket.close();
             } catch (IOException ex) {
@@ -230,6 +249,7 @@ public class Client implements Runnable {
 
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
+
             try {
                 keyGen = KeyPairGenerator.getInstance("RSA");
                 SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
@@ -241,10 +261,14 @@ public class Client implements Runnable {
             } catch (NoSuchAlgorithmException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
-            keyGen.initialize(2048);
+
+            keyGen.initialize(
+                    2048);
             privKey = keyGen.genKeyPair().getPrivate();
             pubKey = keyGen.genKeyPair().getPublic();
-            System.out.println("KEYS DELETED!");
+
+            System.out.println(
+                    "KEYS DELETED!");
             if (reset) {
                 reset();
             }
@@ -358,6 +382,7 @@ public class Client implements Runnable {
                 running = false;
                 reset = true;
             } else if ((!str.isEmpty() || str != null) && running) {
+                str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
