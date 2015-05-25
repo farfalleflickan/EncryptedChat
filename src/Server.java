@@ -44,6 +44,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -67,6 +68,8 @@ public class Server implements Runnable {
         private final Map<SSLSocket, String> toSend;
         private final ArrayList<String> srvMsg;
         private final String greetingStr;
+        private final Long srvTime;
+        private boolean srvRunning;
 
         public TCPServer() {
             String path = "";
@@ -140,6 +143,8 @@ public class Server implements Runnable {
             usersL = new HashMap<>();
             toSend = new HashMap<>();
             srvMsg = new ArrayList<>();
+            srvTime = (System.currentTimeMillis() / 1000L);
+            srvRunning=true;
         }
 
         @Override
@@ -153,7 +158,6 @@ public class Server implements Runnable {
                     portErr = false;
                 } catch (IOException ex) {
                     portErr = true;
-                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     System.out.println("The port is already in use!");
                     String input;
                     do {
@@ -169,7 +173,31 @@ public class Server implements Runnable {
                 }
             } while (portErr);
             System.out.println("Server starting up on TCP port: " + srvPort);
-            while (true) {
+            Thread checker = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (srvRunning) {
+                        synchronized (srvMsg) {
+                            for (String s : srvMsg) {
+                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
+                                matcher.find();
+                                long msgTime = Long.parseLong(matcher.group(1));
+                                if ((srvTime-msgTime)>=600000){
+                                    srvMsg.remove(s);
+                                }
+                            }
+                        }
+                        
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            });
+            checker.start();
+            while (srvRunning) {
                 try {
                     SSLSocket c = (SSLSocket) srvSocket.accept();
                     System.out.println("Client connected from " + c.getInetAddress().getHostName());
@@ -179,6 +207,14 @@ public class Server implements Runnable {
                     new Thread(new TCPClientThread(c)).start();
                     Thread.sleep(500);
                 } catch (IOException | InterruptedException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            checker.interrupt();
+            if (!checker.interrupted()) {
+                try {
+                    checker.join();
+                } catch (InterruptedException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
@@ -235,24 +271,35 @@ public class Server implements Runnable {
                 System.out.println("SERVER: AES double encrypted sent!");
                 getAESKey();
                 System.out.println("SERVER: AES double encrypted received & decrypted!");
+                getUserID();
+                srvMsg.add("SERVER: " + userID + " has connected to the server! Say hi!" + timeTag());
                 running = true;
                 myTime = (System.currentTimeMillis() / 1000L);
-                getUserID();
                 System.out.println("ID \"" + userID + "\" received from IP: " + mySocket.getInetAddress().getHostAddress());
-                sendStr(greetingStr + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
+                sendStr(greetingStr + timeTag());
                 listConnected();
+
                 Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         while (running) {
-                            String input = getStr();
+                            String input = new String(getStr().getBytes(), StandardCharsets.UTF_8);
+                            String ogInput = input;
+
                             if ((!input.isEmpty() || input != null) && input.trim().length() > 0) {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(input);
                                 matcher.find();
                                 input = (String) input.subSequence(0, matcher.start(0));
-                                if (Integer.parseInt(matcher.group(1)) > myTime) {
+                                if (matcher.group(1).matches("close")) {
+                                    System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
+                                    srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
+                                    synchronized (usersL) {
+                                        usersL.remove(mySocket);
+                                    }
+                                    running = false;
+                                } else {
                                     synchronized (toSend) {
-                                        toSend.put(mySocket, input);
+                                        toSend.put(mySocket, ogInput);
                                     }
                                 }
                             }
@@ -262,15 +309,20 @@ public class Server implements Runnable {
                 InThread.start();
                 while (running) {
                     if (!toSend.isEmpty()) {
-                        synchronized (toSend) {
-                            myL = (HashMap<SSLSocket, String>) toSend;
-                        }
                         Iterator it = toSend.entrySet().iterator();
                         while (it.hasNext()) {
                             Entry ent = (Entry) it.next();
                             if (ent.getKey() != mySocket) {
                                 synchronized (usersL) {
-                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue() + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
+                                    String str1 = usersL.get(ent.getKey());
+                                    String str2 = (String) ent.getValue();
+                                    Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str2);
+                                    matcher.find();
+                                    str2 = (String) str2.subSequence(0, matcher.start(0));
+                                    if (Integer.parseInt(matcher.group(1)) > myTime) {
+                                        String str3 = new String((str1 + ": " + str2 + timeTag()).getBytes(), StandardCharsets.UTF_8);
+                                        sendStr(str3);
+                                    }
                                     it.remove();
                                 }
                             }
@@ -278,13 +330,19 @@ public class Server implements Runnable {
                     }
                     if (!srvMsg.isEmpty()) {
                         mySrvL = srvMsg;
-                        for (int i = mySrvL.size() - 1; i > 0; i--) {
-                            sendStr(mySrvL.get(i));
+                        for (int i = 0; i < mySrvL.size(); i++) {
+                            String str = mySrvL.get(i);
+                            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str);
+                            matcher.find();
+                            str = (String) str.subSequence(0, matcher.start(0));
+                            if (Integer.parseInt(matcher.group(1)) > myTime) {
+                                sendStr(str);
+                            }
                             mySrvL.remove(i);
                         }
                     }
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(250);
                     } catch (InterruptedException ex) {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -417,6 +475,7 @@ public class Server implements Runnable {
             }
 
             private void sendStr(String str) {
+                str = new String(str.getBytes(), StandardCharsets.UTF_8);
                 try {
                     Cipher cipher1 = Cipher.getInstance(cAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
@@ -425,9 +484,9 @@ public class Server implements Runnable {
                     ObjectOutputStream sOut = new ObjectOutputStream(mySocket.getOutputStream());
                     sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
-                } catch (SocketException | EOFException ex) {
+                } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-                    srvMsg.add("SERVER: " + userID + " disconnected!" + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
+                    srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
@@ -444,9 +503,9 @@ public class Server implements Runnable {
                     cipher1.init(Cipher.DECRYPT_MODE, cAES);
                     cipher2.init(Cipher.DECRYPT_MODE, AESkey);
                     return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
-                } catch (SocketException | EOFException ex) {
+                } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-                    srvMsg.add("SERVER: " + userID + " disconnected!" + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
+                    srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
@@ -478,7 +537,11 @@ public class Server implements Runnable {
                     }
                 }
                 str2 = str2.substring(0, str2.length() - 2);
-                sendStr(str1 + str2 + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
+                sendStr(str1 + str2 + timeTag());
+            }
+
+            private String timeTag() {
+                return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
             }
         }
     }

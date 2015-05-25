@@ -138,7 +138,7 @@ public class Client implements Runnable {
                     input = "";
                 }
             } while (input.isEmpty());
-            System.out.println("Enter a username for this session: ");
+            System.out.print("Enter a username for this session: ");
             myID = new Scanner(System.in).nextLine();
             this.run();
         }
@@ -167,7 +167,7 @@ public class Client implements Runnable {
                             input = "";
                         }
                     } while (input.isEmpty());
-                    System.out.println("Enter a username for this session: ");
+                    System.out.print("Enter a username for this session: ");
                     myID = new Scanner(System.in).nextLine();
                 }
             }
@@ -198,9 +198,13 @@ public class Client implements Runnable {
                     while (running) {
                         String s = getStr();
                         if (s.trim().length() > 0 && (!s.isEmpty() || s != null)) {
-                            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
-                            matcher.find();
-                            s = (String) s.subSequence(0, matcher.start(0));
+                            try {
+                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
+                                matcher.find();
+                                s = (String) s.subSequence(0, matcher.start(0));
+                            } catch (IllegalStateException ex) {
+
+                            }
                             System.out.println(s);
                         }
                     }
@@ -212,7 +216,7 @@ public class Client implements Runnable {
                 @Override
                 public void run() {
                     while (running) {
-                        sendStr(new String(new Scanner(System.in).nextLine().getBytes(), StandardCharsets.UTF_8));
+                        sendStr(new Scanner(System.in).nextLine());
                     }
                     InThread.interrupt();
                 }
@@ -362,14 +366,17 @@ public class Client implements Runnable {
 
         private void sendStr(String str) {
             if (str.matches("!quit") || str.matches("!q")) {
+                sendStr("(STX)" + "close" + "(ETX)");
                 System.out.println("You have disconnected!");
                 running = false;
             } else if (str.matches("!disconnect") || str.matches("!dc")) {
+                sendStr("(STX)" + "close" + "(ETX)");
                 System.out.println("You have disconnected!");
                 running = false;
                 reset = true;
             } else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+                str = new String(str.getBytes(), StandardCharsets.UTF_8);
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
