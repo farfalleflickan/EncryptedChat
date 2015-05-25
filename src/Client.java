@@ -6,6 +6,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -196,16 +197,14 @@ public class Client implements Runnable {
                 @Override
                 public void run() {
                     while (running) {
-                        System.out.println("GETTING INPUT");
                         String s = getStr();
-                        System.out.println("S    "+s);
                         if (s.trim().length() > 0 && (!s.isEmpty() && s != null)) {
                             Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
                             matcher.find();
                             s = (String) s.subSequence(0, matcher.start(0));
                             if (Integer.parseInt(matcher.group(1)) > (System.currentTimeMillis() / 1000L)) {
                                 System.out.println(s);
-                                
+
                                 try {
                                     Thread.sleep(500);
                                 } catch (InterruptedException ex) {
@@ -221,7 +220,6 @@ public class Client implements Runnable {
                 @Override
                 public void run() {
                     while (running) {
-                        System.out.println("SENDING INPUT");
                         sendStr(new Scanner(System.in).nextLine());
                     }
                     InThread.interrupt();
@@ -262,13 +260,11 @@ public class Client implements Runnable {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
 
-            keyGen.initialize(
-                    2048);
+            keyGen.initialize(2048);
             privKey = keyGen.genKeyPair().getPrivate();
             pubKey = keyGen.genKeyPair().getPublic();
 
-            System.out.println(
-                    "KEYS DELETED!");
+            System.out.println("All encryption keys have been deleted!");
             if (reset) {
                 reset();
             }
@@ -389,7 +385,7 @@ public class Client implements Runnable {
                     cipher1.init(Cipher.ENCRYPT_MODE, srvAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(srvSocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
                 } catch (SSLException ex) {
                     if (running) {
@@ -408,7 +404,7 @@ public class Client implements Runnable {
                 Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                 cipher1.init(Cipher.DECRYPT_MODE, srvAES);
                 cipher2.init(Cipher.DECRYPT_MODE, AESkey);
-                return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(srvSocket.getInputStream()).readObject())));
+                return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(srvSocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
             } catch (SocketException ex) {
                 if (running) {
                     System.out.println("You have been disconnected from the server!");

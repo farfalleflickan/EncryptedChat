@@ -13,6 +13,7 @@ import java.io.ObjectOutputStream;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -395,7 +396,7 @@ public class Server implements Runnable {
                     cipher1.init(Cipher.ENCRYPT_MODE, cAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(mySocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
                 } catch (SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
@@ -415,7 +416,7 @@ public class Server implements Runnable {
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.DECRYPT_MODE, cAES);
                     cipher2.init(Cipher.DECRYPT_MODE, AESkey);
-                    return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())));
+                    return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
                 } catch (SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
                     srvMsg.add("SERVER: " + userID + " disconnected!");
