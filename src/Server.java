@@ -144,7 +144,7 @@ public class Server implements Runnable {
             toSend = new HashMap<>();
             srvMsg = new ArrayList<>();
             srvTime = (System.currentTimeMillis() / 1000L);
-            srvRunning=true;
+            srvRunning = true;
         }
 
         @Override
@@ -162,7 +162,7 @@ public class Server implements Runnable {
                     String input;
                     do {
                         System.out.print("Input a new port: ");
-                        input = new Scanner(System.in).next();
+                        input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
@@ -182,12 +182,12 @@ public class Server implements Runnable {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
                                 matcher.find();
                                 long msgTime = Long.parseLong(matcher.group(1));
-                                if ((srvTime-msgTime)>=600000){
+                                if ((srvTime - msgTime) >= 600000) {
                                     srvMsg.remove(s);
                                 }
                             }
                         }
-                        
+
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException ex) {
@@ -218,6 +218,18 @@ public class Server implements Runnable {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
+
+            Iterator it = toSend.entrySet().iterator();
+            while (it.hasNext()) {
+                Entry ent = (Entry) it.next();
+                SSLSocket s = (SSLSocket) ent.getKey();
+                try {
+                    s.close();
+                } catch (IOException ex) {
+                    Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+
         }
 
         private class TCPClientThread implements Runnable {
@@ -229,8 +241,6 @@ public class Server implements Runnable {
             private SecretKey cAES;
             private PublicKey cRSA;
             private String userID;
-            private HashMap<SSLSocket, String> myL;
-            private ArrayList<String> mySrvL;
             private boolean running;
             private long myTime;
 
@@ -257,8 +267,6 @@ public class Server implements Runnable {
                 privKey = pair.getPrivate();
                 pubKey = pair.getPublic();
                 AESkey = AESkeyGen.generateKey();
-                myL = new HashMap<>();
-                mySrvL = new ArrayList<>();
             }
 
             @Override
@@ -314,35 +322,39 @@ public class Server implements Runnable {
                             Entry ent = (Entry) it.next();
                             if (ent.getKey() != mySocket) {
                                 synchronized (usersL) {
-                                    String str1 = usersL.get(ent.getKey());
+                                    String str1 = usersL.get((SSLSocket) ent.getKey());
                                     String str2 = (String) ent.getValue();
                                     Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str2);
                                     matcher.find();
-                                    str2 = (String) str2.subSequence(0, matcher.start(0));
-                                    if (Integer.parseInt(matcher.group(1)) > myTime) {
-                                        String str3 = new String((str1 + ": " + str2 + timeTag()).getBytes(), StandardCharsets.UTF_8);
-                                        sendStr(str3);
+                                    String str3 = (String) str2.subSequence(matcher.start(1), str2.length());
+                                    str3 = str3.replace(matcher.group(1) + "(ETX)", "");
+                                    String str4 = (String) str2.subSequence(0, matcher.start(0));
+                                    if (Integer.parseInt(matcher.group(1)) > myTime && !str3.contains("(ID)" + userID + "(ID)")) {
+                                        sendStr(str1 + ": " + str4);
+                                        toSend.put((SSLSocket) ent.getKey(), str2 + ("(ID)" + userID + "(ID)"));
                                     }
-                                    it.remove();
                                 }
                             }
                         }
                     }
-                    if (!srvMsg.isEmpty()) {
-                        mySrvL = srvMsg;
-                        for (int i = 0; i < mySrvL.size(); i++) {
-                            String str = mySrvL.get(i);
-                            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str);
-                            matcher.find();
-                            str = (String) str.subSequence(0, matcher.start(0));
-                            if (Integer.parseInt(matcher.group(1)) > myTime) {
-                                sendStr(str);
+                    synchronized (srvMsg) {
+                        if (!srvMsg.isEmpty()) {
+                            for (int i = 0; i < srvMsg.size(); i++) {
+                                String str = srvMsg.get(i);
+                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str);
+                                matcher.find();
+                                String str1 = (String) str.subSequence(0, matcher.start(0));
+                                String str2 = (String) str.subSequence(matcher.start(1), str.length());
+                                str2 = str2.replace(matcher.group(1) + "(ETX)", "");
+                                if (Integer.parseInt(matcher.group(1)) > myTime && !str2.contains("(ID)" + userID + "(ID)")) {
+                                    sendStr(str1);
+                                    srvMsg.set(i, str + ("(ID)" + userID + "(ID)"));
+                                }
                             }
-                            mySrvL.remove(i);
                         }
                     }
                     try {
-                        Thread.sleep(250);
+                        Thread.sleep(200);
                     } catch (InterruptedException ex) {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -517,7 +529,7 @@ public class Server implements Runnable {
             }
 
             private void getUserID() {
-                userID = getStr();
+                userID = new String(getStr().getBytes(StandardCharsets.UTF_8));
                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(userID);
                 matcher.find();
                 userID = (String) userID.subSequence(0, matcher.start(0));
@@ -533,7 +545,8 @@ public class Server implements Runnable {
                     Iterator it = usersL.entrySet().iterator();
                     while (it.hasNext()) {
                         Entry ent = (Entry) it.next();
-                        str2 += usersL.get(ent.getKey()) + ", ";
+                        String s = new String(usersL.get((SSLSocket) ent.getKey()).getBytes(StandardCharsets.UTF_8));
+                        str2 += s + ", ";
                     }
                 }
                 str2 = str2.substring(0, str2.length() - 2);

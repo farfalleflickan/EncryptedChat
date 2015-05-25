@@ -74,11 +74,11 @@ public class Client implements Runnable {
             pubKey = pair.getPublic();
             AESkey = AESkeyGen.generateKey();
             System.out.print("Enter server adress: ");
-            srvIP = new Scanner(System.in).next();
+            srvIP = new Scanner(System.in).nextLine();
             String input;
             do {
                 System.out.print("Enter server port: ");
-                input = new Scanner(System.in).next();
+                input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
@@ -126,11 +126,11 @@ public class Client implements Runnable {
             srvAES = null;
             srvKey = null;
             System.out.print("Enter server adress: ");
-            srvIP = new Scanner(System.in).next();
+            srvIP = new Scanner(System.in).nextLine();
             String input;
             do {
                 System.out.print("Enter server port: ");
-                input = new Scanner(System.in).next();
+                input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
@@ -155,11 +155,11 @@ public class Client implements Runnable {
                 } catch (IOException | IllegalArgumentException ex) {
                     disconnect = true;
                     System.out.print("Can not reach the server, please enter another ip: ");
-                    srvIP = new Scanner(System.in).next();
+                    srvIP = new Scanner(System.in).nextLine();
                     String input;
                     do {
                         System.out.print("Input a new port: ");
-                        input = new Scanner(System.in).next();
+                        input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
@@ -185,7 +185,7 @@ public class Client implements Runnable {
             sendAESKey();
             System.out.println("CLIENT: AES double encrypted sent!");
             running = true;
-            sendStr(myID);
+            sendStr(new String(myID.getBytes(), StandardCharsets.UTF_8));
             System.out.println("ALL SYSTEMS NORMAL!");
             String grtStr = getStr();
             Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(grtStr);
