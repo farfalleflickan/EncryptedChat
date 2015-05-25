@@ -1,18 +1,23 @@
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -27,7 +32,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,7 +44,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -66,47 +69,72 @@ public class Server implements Runnable {
         private final String greetingStr;
 
         public TCPServer() {
+            String path = "";
+            try {
+                path = URLDecoder.decode(Server.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath(), "UTF-8");
+                path = path.substring(0, path.lastIndexOf("/"));
+                path = path.replaceAll("%20", " ");
+                path += "/settings.conf";
+            } catch (UnsupportedEncodingException | URISyntaxException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+            }
             int port = 0;
             String str = "";
-            FileInputStream fIn = null;
-            try {
-                fIn = new FileInputStream(new File(".\\src\\settings.conf"));
-                BufferedReader bR = new BufferedReader(new InputStreamReader(fIn));
-                String line = null;
-                for (int i = 0; (line = bR.readLine()) != null;) {
-                    Matcher matcher = Pattern.compile("\"(.+?)\"").matcher(line);
-                    matcher.find();
-                    if (i == 0) {
-                        port = Integer.parseInt(matcher.group(1));
-                        i++;
-                    } else if (i == 1) {
-                        str = matcher.group(1);
-                        i++;
-                    } else if (i == 2) {
-                        if (Integer.parseInt(matcher.group(1)) == 1) {
-                            str += new BufferedReader(new InputStreamReader(new URL("http://checkip.amazonaws.com").openStream())).readLine();
-                            i++;
-                        } else {
-                            i += 2;
-                        }
-                    } else if (i == 3) {
-                        str += matcher.group(1);
-                    }
-                }
-            } catch (IllegalStateException ex) {
-                System.out.println("ERROR in the configuration file!");
-                System.exit(0);
-            } catch (FileNotFoundException ex) {
-                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (IOException ex) {
-                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-            } finally {
+            boolean reset;
+            do {
+                reset = false;
+                FileInputStream fIn = null;
                 try {
-                    fIn.close();
+                    fIn = new FileInputStream(new File(path));
+                    BufferedReader bR = new BufferedReader(new InputStreamReader(fIn));
+                    String line = "";
+                    for (int i = 0; (line = bR.readLine()) != null;) {
+                        Matcher matcher = Pattern.compile("\"(.+?)\"").matcher(line);
+                        matcher.find();
+                        if (i == 0) {
+                            port = Integer.parseInt(matcher.group(1));
+                            i++;
+                        } else if (i == 1) {
+                            str = matcher.group(1);
+                            i++;
+                        } else if (i == 2) {
+                            if (Integer.parseInt(matcher.group(1)) == 1) {
+                                str += new BufferedReader(new InputStreamReader(new URL("http://checkip.amazonaws.com").openStream())).readLine();
+                                i++;
+                            } else {
+                                i += 2;
+                            }
+                        } else if (i == 3) {
+                            str += matcher.group(1);
+                        }
+                    }
+                } catch (IllegalStateException ex) {
+                    System.out.println("ERROR in the configuration file!");
+                    System.exit(0);
+                } catch (FileNotFoundException ex) {
+                    System.out.println("Missing configuration file, creating new default...");
+                    BufferedWriter fOut = null;
+                    try {
+                        fOut = new BufferedWriter(new FileWriter(new File(path)));
+                        fOut.write("port=\"9004\"\nwelcomeMsg=\"HELLO FROM \"\naddIPmsg=\"1\" #adds server ip to the welcome msg, 0 disable, 1 enables\npostIPmsg = \"!\" #adds text after ip, if addIPMsg is set to \"1\"");
+                        fOut.flush();
+                        fOut.close();
+                        reset = true;
+                    } catch (IOException ex1) {
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex1);
+                    }
                 } catch (IOException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                } finally {
+                    try {
+                        if (fIn != null) {
+                            fIn.close();
+                        }
+                    } catch (IOException ex) {
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                 }
-            }
+            } while (reset);
             srvPort = port;
             greetingStr = str;
             usersL = new HashMap<>();
@@ -222,7 +250,7 @@ public class Server implements Runnable {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(input);
                                 matcher.find();
                                 input = (String) input.subSequence(0, matcher.start(0));
-                                if (Integer.parseInt(matcher.group(1)) < myTime) {
+                                if (Integer.parseInt(matcher.group(1)) > myTime) {
                                     synchronized (toSend) {
                                         toSend.put(mySocket, input);
                                     }
@@ -233,7 +261,7 @@ public class Server implements Runnable {
                 });
                 InThread.start();
                 while (running) {
-                    if (usersL.size() > 1 && toSend.isEmpty() == false) {
+                    if (!toSend.isEmpty()) {
                         synchronized (toSend) {
                             myL = (HashMap<SSLSocket, String>) toSend;
                         }
@@ -242,8 +270,7 @@ public class Server implements Runnable {
                             Entry ent = (Entry) it.next();
                             if (ent.getKey() != mySocket) {
                                 synchronized (usersL) {
-                                    String time = "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
-                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue() + time);
+                                    sendStr(usersL.get(ent.getKey()) + ": " + ent.getValue() + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
                                     it.remove();
                                 }
                             }
@@ -400,7 +427,7 @@ public class Server implements Runnable {
                     sOut.flush();
                 } catch (SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-                    srvMsg.add("SERVER: " + userID + " disconnected!" + (System.currentTimeMillis() / 1000L));
+                    srvMsg.add("SERVER: " + userID + " disconnected!" + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
@@ -419,7 +446,7 @@ public class Server implements Runnable {
                     return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
                 } catch (SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-                    srvMsg.add("SERVER: " + userID + " disconnected!");
+                    srvMsg.add("SERVER: " + userID + " disconnected!" + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
                     synchronized (usersL) {
                         usersL.remove(mySocket);
                     }
@@ -451,8 +478,7 @@ public class Server implements Runnable {
                     }
                 }
                 str2 = str2.substring(0, str2.length() - 2);
-                String time = "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
-                sendStr(str1 + str2 + time);
+                sendStr(str1 + str2 + "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)");
             }
         }
     }
@@ -460,7 +486,7 @@ public class Server implements Runnable {
     public static class UDPServer extends Server {
 
         private DatagramSocket srvSocket;
-        
+
         public UDPServer(int port) {
             srvPort = port;
         }

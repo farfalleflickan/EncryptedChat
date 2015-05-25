@@ -14,9 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.Timestamp;
 import java.util.Arrays;
-import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,7 +27,6 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -141,7 +138,7 @@ public class Client implements Runnable {
                     input = "";
                 }
             } while (input.isEmpty());
-            System.out.print("Enter a username for this session: ");
+            System.out.println("Enter a username for this session: ");
             myID = new Scanner(System.in).nextLine();
             this.run();
         }
@@ -170,6 +167,8 @@ public class Client implements Runnable {
                             input = "";
                         }
                     } while (input.isEmpty());
+                    System.out.println("Enter a username for this session: ");
+                    myID = new Scanner(System.in).nextLine();
                 }
             }
         }
@@ -198,36 +197,28 @@ public class Client implements Runnable {
                 public void run() {
                     while (running) {
                         String s = getStr();
-                        if (s.trim().length() > 0 && (!s.isEmpty() && s != null)) {
+                        if (s.trim().length() > 0 && (!s.isEmpty() || s != null)) {
                             Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
                             matcher.find();
                             s = (String) s.subSequence(0, matcher.start(0));
-                            if (Integer.parseInt(matcher.group(1)) > (System.currentTimeMillis() / 1000L)) {
-                                System.out.println(s);
-
-                                try {
-                                    Thread.sleep(500);
-                                } catch (InterruptedException ex) {
-                                }
-                            }
+                            System.out.println(s);
                         }
                     }
                     OutThread.interrupt();
                 }
-            }
-            );
+            });
+
             OutThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
-                        sendStr(new Scanner(System.in).nextLine());
+                        sendStr(new String(new Scanner(System.in).nextLine().getBytes(), StandardCharsets.UTF_8));
                     }
                     InThread.interrupt();
                 }
             });
 
             InThread.start();
-
             OutThread.start();
             while (running) {
                 try {
