@@ -61,6 +61,17 @@ public class Server implements Runnable {
     public void run() {
     }
 
+    private static String rmTime(String str) {
+        String ogStr = str;
+        try {
+            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str);
+            matcher.find();
+            return (String) str.subSequence(0, matcher.start(0));
+        } catch (IllegalStateException ex) {
+        }
+        return str;
+    }
+
     public static class TCPServer extends Server {
 
         private SSLServerSocket srvSocket;
@@ -113,13 +124,15 @@ public class Server implements Runnable {
                     }
                 } catch (IllegalStateException ex) {
                     System.out.println("ERROR in the configuration file!");
+
                     System.exit(0);
                 } catch (FileNotFoundException ex) {
                     System.out.println("Missing configuration file, creating new default...");
+
                     BufferedWriter fOut = null;
                     try {
                         fOut = new BufferedWriter(new FileWriter(new File(path)));
-                        fOut.write("port=\"9004\"\nwelcomeMsg=\"HELLO FROM \"\naddIPmsg=\"1\" #adds server ip to the welcome msg, 0 disable, 1 enables\npostIPmsg = \"!\" #adds text after ip, if addIPMsg is set to \"1\"");
+                        fOut.write("port=\"9002\"\nwelcomeMsg=\"HELLO FROM \"\naddIPmsg=\"1\" #adds server ip to the welcome msg, 0 disable, 1 enables\npostIPmsg = \"!\" #adds text after ip, if addIPMsg is set to \"1\"");
                         fOut.flush();
                         fOut.close();
                         reset = true;
@@ -159,20 +172,24 @@ public class Server implements Runnable {
                 } catch (IOException ex) {
                     portErr = true;
                     System.out.println("The port is already in use!");
+
                     String input;
                     do {
                         System.out.print("Input a new port: ");
+
                         input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
+
                             input = "";
                         }
                     } while (input.isEmpty());
                 }
             } while (portErr);
             System.out.println("Server starting up on TCP port: " + srvPort);
+
             Thread checker = new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -182,8 +199,21 @@ public class Server implements Runnable {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
                                 matcher.find();
                                 long msgTime = Long.parseLong(matcher.group(1));
-                                if ((srvTime - msgTime) >= 600000) {
+                                if ((srvTime - msgTime) >= 120000) {
                                     srvMsg.remove(s);
+                                }
+                            }
+                        }
+                        synchronized (toSend) {
+                            Iterator iter = toSend.entrySet().iterator();
+                            while (iter.hasNext()) {
+                                Map.Entry ent = (Map.Entry) iter.next();
+                                String s = (String) ent.getValue();
+                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
+                                matcher.find();
+                                long msgTime = Long.parseLong(matcher.group(1));
+                                if ((srvTime - msgTime) >= 120000) {
+                                    iter.remove();
                                 }
                             }
                         }
@@ -201,6 +231,7 @@ public class Server implements Runnable {
                 try {
                     SSLSocket c = (SSLSocket) srvSocket.accept();
                     System.out.println("Client connected from " + c.getInetAddress().getHostName());
+
                     synchronized (usersL) {
                         usersL.put(c, "");
                     }
@@ -241,7 +272,7 @@ public class Server implements Runnable {
             private SecretKey cAES;
             private PublicKey cRSA;
             private String userID;
-            private boolean running;
+            private boolean running = false, userIDchanged = false;
             private long myTime;
 
             private TCPClientThread(SSLSocket s) {
@@ -280,12 +311,16 @@ public class Server implements Runnable {
                 getAESKey();
                 System.out.println("SERVER: AES double encrypted received & decrypted!");
                 getUserID();
-                srvMsg.add("SERVER: " + userID + " has connected to the server! Say hi!" + timeTag());
                 running = true;
                 myTime = (System.currentTimeMillis() / 1000L);
-                System.out.println("ID \"" + userID + "\" received from IP: " + mySocket.getInetAddress().getHostAddress());
+                System.out.println("ID \"" + userID + "\" received from IP: " + mySocket.getInetAddress().getHostName());
+                if (userIDchanged) {
+                    sendStr("(SRV-ID)" + userID + "(SRV-ID)" + timeTag());
+                }
                 sendStr(greetingStr + timeTag());
                 listConnected();
+                sendStr("(SRV)CONNECTED(SRV)" + timeTag());
+                srvMsg.add("SERVER: " + userID + " has connected to the server! Say hi!" + timeTag());
 
                 Thread InThread = new Thread(new Runnable() {
                     @Override
@@ -293,8 +328,7 @@ public class Server implements Runnable {
                         while (running) {
                             String input = new String(getStr().getBytes(), StandardCharsets.UTF_8);
                             String ogInput = input;
-
-                            if ((!input.isEmpty() || input != null) && input.trim().length() > 0) {
+                            try {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(input);
                                 matcher.find();
                                 input = (String) input.subSequence(0, matcher.start(0));
@@ -305,15 +339,21 @@ public class Server implements Runnable {
                                         usersL.remove(mySocket);
                                     }
                                     running = false;
-                                } else {
-                                    synchronized (toSend) {
-                                        toSend.put(mySocket, ogInput);
-                                    }
+                                } else if (matcher.group(1).matches("listusers")){
+                                    listConnected();
+                                }
+                            } catch (IllegalStateException ex) {
+                            }
+                            if ((!input.isEmpty() || input != null) && input.trim().length() > 0) {
+                                synchronized (toSend) {
+                                    toSend.put(mySocket, ogInput);
                                 }
                             }
                         }
+
                     }
                 });
+
                 InThread.start();
                 while (running) {
                     if (!toSend.isEmpty()) {
@@ -359,12 +399,15 @@ public class Server implements Runnable {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
+
                 InThread.interrupt();
+
                 try {
                     InThread.join();
                 } catch (InterruptedException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
+
                 try {
                     mySocket.close();
                 } catch (IOException ex) {
@@ -373,6 +416,7 @@ public class Server implements Runnable {
                 userID = "";
                 KeyPairGenerator keyGen = null;
                 KeyGenerator AESkeyGen = null;
+
                 try {
                     SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
                     keyGen = KeyPairGenerator.getInstance("RSA");
@@ -498,6 +542,7 @@ public class Server implements Runnable {
                     sOut.flush();
                 } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
+
                     srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
@@ -517,6 +562,7 @@ public class Server implements Runnable {
                     return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
                 } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
+
                     srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
@@ -533,8 +579,27 @@ public class Server implements Runnable {
                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(userID);
                 matcher.find();
                 userID = (String) userID.subSequence(0, matcher.start(0));
+                checkUserID();
                 synchronized (usersL) {
                     usersL.put(mySocket, userID);
+                }
+            }
+
+            private void checkUserID() {
+                int i = 1;
+                if (!usersL.isEmpty()) {
+                    Iterator iter = usersL.entrySet().iterator();
+                    while (iter.hasNext()) {
+                        Map.Entry ent = (Map.Entry) iter.next();
+                        String s = (String) ent.getValue();
+                        if (s.equals(userID)) {
+                            i++;
+                        }
+                    }
+                }
+                if (i != 1) {
+                    userID = userID + "(" + i + ")";
+                    userIDchanged = true;
                 }
             }
 
@@ -577,20 +642,24 @@ public class Server implements Runnable {
                     portErr = true;
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     System.out.println("The port is already in use!");
+
                     String input;
                     do {
                         System.out.print("Input a new port: ");
-                        input = new Scanner(System.in).next();
+
+                        input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
+
                             input = "";
                         }
                     } while (input.isEmpty());
                 }
             } while (portErr);
             System.out.println("Server starting up on UDP port: " + srvPort);
+
             run();
         }
     }
