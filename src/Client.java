@@ -1,6 +1,7 @@
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -53,11 +54,12 @@ public class Client implements Runnable {
         private SecretKey srvAES;
         private PublicKey srvKey;
         private String myID;
-        private boolean running, reset;
+        private boolean running, reset, connected;
         private Thread InThread, OutThread;
 
         public TCPClient() {
             reset = false;
+            connected = false;
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
             try {
@@ -78,15 +80,18 @@ public class Client implements Runnable {
             String input;
             do {
                 System.out.print("Enter server port: ");
+
                 input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
+
                     input = "";
                 }
             } while (input.isEmpty());
             System.out.print("Enter a username for this session: ");
+
             myID = new Scanner(System.in).nextLine();
         }
 
@@ -126,19 +131,23 @@ public class Client implements Runnable {
             srvAES = null;
             srvKey = null;
             System.out.print("Enter server adress: ");
+
             srvIP = new Scanner(System.in).nextLine();
             String input;
             do {
                 System.out.print("Enter server port: ");
+
                 input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
+
                     input = "";
                 }
             } while (input.isEmpty());
             System.out.print("Enter a username for this session: ");
+
             myID = new Scanner(System.in).nextLine();
             this.run();
         }
@@ -155,20 +164,25 @@ public class Client implements Runnable {
                 } catch (IOException | IllegalArgumentException ex) {
                     disconnect = true;
                     System.out.print("Can not reach the server, please enter another ip: ");
+
                     srvIP = new Scanner(System.in).nextLine();
                     String input;
                     do {
                         System.out.print("Input a new port: ");
+
                         input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
+
                             input = "";
                         }
                     } while (input.isEmpty());
                     System.out.print("Enter a username for this session: ");
+
                     myID = new Scanner(System.in).nextLine();
+
                 }
             }
         }
@@ -185,45 +199,45 @@ public class Client implements Runnable {
             sendAESKey();
             System.out.println("CLIENT: AES double encrypted sent!");
             running = true;
-            sendStr(new String(myID.getBytes(), StandardCharsets.UTF_8));
+            sendStr(myID);
             System.out.println("ALL SYSTEMS NORMAL!");
-            String grtStr = getStr();
-            Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(grtStr);
-            matcher.find();
-            grtStr = (String) grtStr.subSequence(0, matcher.start(0));
-            System.out.println(grtStr);
+
             InThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
                         String s = getStr();
+                        s = rmTime(s);
                         if (s.trim().length() > 0 && (!s.isEmpty() || s != null)) {
-                            try {
-                                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(s);
+                            if (s.contains("(SRV-ID)") && connected==false){
+                                Matcher matcher = Pattern.compile("\\(SRV-ID\\)(.+?)\\(SRV-ID\\)").matcher(s);
                                 matcher.find();
-                                s = (String) s.subSequence(0, matcher.start(0));
-                            } catch (IllegalStateException ex) {
-
+                                s = (String) matcher.group(1);
+                                myID = s;
+                                System.out.println("Your username has been changed to: " + myID +  " by the server!");
+                            } else if (s.contains("(SRV)CONNECTED(SRV)") && connected==false) {
+                                System.out.println("You are now securily connected to the server!");
+                                connected = true;
+                                OutThread.start();
+                            } else {
+                                System.out.println(s);
                             }
-                            System.out.println(s);
                         }
                     }
                     OutThread.interrupt();
                 }
             });
-
             OutThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     while (running) {
-                        sendStr(new Scanner(System.in).nextLine());
+                        String s = new Scanner(System.in).nextLine();
+                        sendStr(s);
                     }
                     InThread.interrupt();
                 }
             });
-
             InThread.start();
-            OutThread.start();
             while (running) {
                 try {
                     Thread.sleep(500);
@@ -239,7 +253,6 @@ public class Client implements Runnable {
             myID = "";
             srvIP = "";
             srvPort = 0;
-
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
 
@@ -260,6 +273,7 @@ public class Client implements Runnable {
             pubKey = keyGen.genKeyPair().getPublic();
 
             System.out.println("All encryption keys have been deleted!");
+
             if (reset) {
                 reset();
             }
@@ -368,13 +382,16 @@ public class Client implements Runnable {
             if (str.matches("!quit") || str.matches("!q")) {
                 sendStr("(STX)" + "close" + "(ETX)");
                 System.out.println("You have disconnected!");
+                reset = false;
                 running = false;
             } else if (str.matches("!disconnect") || str.matches("!dc")) {
                 sendStr("(STX)" + "close" + "(ETX)");
                 System.out.println("You have disconnected!");
                 running = false;
                 reset = true;
-            } else if ((!str.isEmpty() || str != null) && running) {
+            } else if (str.matches("!l") || str.matches("!list")){ 
+                sendStr("(STX)" + "listusers" + "(ETX)");
+            }else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
                 str = new String(str.getBytes(), StandardCharsets.UTF_8);
                 try {
@@ -388,6 +405,7 @@ public class Client implements Runnable {
                 } catch (SSLException ex) {
                     if (running) {
                         System.out.println("You have been disconnected from the server!");
+
                         running = false;
                     }
                 } catch (IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
@@ -409,7 +427,7 @@ public class Client implements Runnable {
                     running = false;
                 }
                 reset = true;
-            } catch (SSLException ex) {
+            } catch (SSLException | EOFException ex) {
                 if (running) {
                     System.out.println("You have been disconnected from the server!");
                     running = false;
@@ -418,6 +436,17 @@ public class Client implements Runnable {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
             return "";
+        }
+
+        private static String rmTime(String str) {
+            String ogStr = str;
+            try {
+                Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(str);
+                matcher.find();
+                return (String) str.subSequence(0, matcher.start(0));
+            } catch (IllegalStateException ex) {
+            }
+            return str;
         }
     }
 
