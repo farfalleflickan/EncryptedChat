@@ -339,7 +339,7 @@ public class Server implements Runnable {
                                         usersL.remove(mySocket);
                                     }
                                     running = false;
-                                } else if (matcher.group(1).matches("listusers")){
+                                } else if (matcher.group(1).matches("listusers")) {
                                     listConnected();
                                 }
                             } catch (IllegalStateException ex) {
@@ -611,7 +611,9 @@ public class Server implements Runnable {
                     while (it.hasNext()) {
                         Entry ent = (Entry) it.next();
                         String s = new String(usersL.get((SSLSocket) ent.getKey()).getBytes(StandardCharsets.UTF_8));
-                        str2 += s + ", ";
+                        if (s.trim().length() > 0) {
+                            str2 += s + ", ";
+                        }
                     }
                 }
                 str2 = str2.substring(0, str2.length() - 2);
