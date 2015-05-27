@@ -80,19 +80,23 @@ public class Client implements Runnable {
             String input;
             do {
                 System.out.print("Enter server port: ");
-
                 input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
-
                     input = "";
                 }
             } while (input.isEmpty());
-            System.out.print("Enter a username for this session: ");
-
-            myID = new Scanner(System.in).nextLine();
+            do {
+                System.out.print("Enter a username for this session: ");
+                myID = new Scanner(System.in).nextLine();
+                if (myID.trim().length() > 0) {
+                } else {
+                    System.out.println("Username can not be empty!");
+                    myID = "";
+                }
+            } while (input.isEmpty());
         }
 
         private void reset() {
@@ -131,24 +135,27 @@ public class Client implements Runnable {
             srvAES = null;
             srvKey = null;
             System.out.print("Enter server adress: ");
-
             srvIP = new Scanner(System.in).nextLine();
             String input;
             do {
                 System.out.print("Enter server port: ");
-
                 input = new Scanner(System.in).nextLine();
                 if (input.matches("[0-9]+")) {
                     srvPort = Integer.parseInt(input);
                 } else {
                     System.out.println("Input invalid! Input a valid port!");
-
                     input = "";
                 }
             } while (input.isEmpty());
-            System.out.print("Enter a username for this session: ");
-
-            myID = new Scanner(System.in).nextLine();
+            do {
+                System.out.print("Enter a username for this session: ");
+                myID = new Scanner(System.in).nextLine();
+                if (myID.trim().length() > 0) {
+                } else {
+                    System.out.println("Username can not be empty!");
+                    myID = "";
+                }
+            } while (input.isEmpty());
             this.run();
         }
 
@@ -159,30 +166,31 @@ public class Client implements Runnable {
                     SSLSocketFactory sockF = (SSLSocketFactory) SSLSocketFactory.getDefault();
                     srvSocket = (SSLSocket) sockF.createSocket(srvIP, srvPort);
                     srvSocket.setEnabledCipherSuites(new String[]{"SSL_DH_anon_WITH_RC4_128_MD5"});
-
                     disconnect = false;
                 } catch (IOException | IllegalArgumentException ex) {
                     disconnect = true;
                     System.out.print("Can not reach the server, please enter another ip: ");
-
                     srvIP = new Scanner(System.in).nextLine();
                     String input;
                     do {
                         System.out.print("Input a new port: ");
-
                         input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
-
                             input = "";
                         }
                     } while (input.isEmpty());
-                    System.out.print("Enter a username for this session: ");
-
-                    myID = new Scanner(System.in).nextLine();
-
+                    do {
+                        System.out.print("Enter a username for this session: ");
+                        myID = new Scanner(System.in).nextLine();
+                        if (myID.trim().length() > 0) {
+                        } else {
+                            System.out.println("Username can not be empty!");
+                            myID = "";
+                        }
+                    } while (input.isEmpty());
                 }
             }
         }
@@ -209,13 +217,13 @@ public class Client implements Runnable {
                         String s = getStr();
                         s = rmTime(s);
                         if (s.trim().length() > 0 && (!s.isEmpty() || s != null)) {
-                            if (s.contains("(SRV-ID)") && connected==false){
+                            if (s.contains("(SRV-ID)") && connected == false) {
                                 Matcher matcher = Pattern.compile("\\(SRV-ID\\)(.+?)\\(SRV-ID\\)").matcher(s);
                                 matcher.find();
                                 s = (String) matcher.group(1);
                                 myID = s;
-                                System.out.println("Your username has been changed to: " + myID +  " by the server!");
-                            } else if (s.contains("(SRV)CONNECTED(SRV)") && connected==false) {
+                                System.out.println("Your username has been changed to: " + myID + " by the server!");
+                            } else if (s.contains("(SRV)CONNECTED(SRV)") && connected == false) {
                                 System.out.println("You are now securily connected to the server!");
                                 connected = true;
                                 OutThread.start();
@@ -389,9 +397,9 @@ public class Client implements Runnable {
                 System.out.println("You have disconnected!");
                 running = false;
                 reset = true;
-            } else if (str.matches("!l") || str.matches("!list")){ 
+            } else if (str.matches("!l") || str.matches("!list")) {
                 sendStr("(STX)" + "listusers" + "(ETX)");
-            }else if ((!str.isEmpty() || str != null) && running) {
+            } else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
                 str = new String(str.getBytes(), StandardCharsets.UTF_8);
                 try {

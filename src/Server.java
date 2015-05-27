@@ -646,20 +646,17 @@ public class Server implements Runnable {
                     String input;
                     do {
                         System.out.print("Input a new port: ");
-
                         input = new Scanner(System.in).nextLine();
                         if (input.matches("[0-9]+")) {
                             srvPort = Integer.parseInt(input);
                         } else {
                             System.out.println("Input a valid port!");
-
                             input = "";
                         }
                     } while (input.isEmpty());
                 }
             } while (portErr);
             System.out.println("Server starting up on UDP port: " + srvPort);
-
             run();
         }
     }
