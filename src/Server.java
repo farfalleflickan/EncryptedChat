@@ -538,14 +538,13 @@ public class Server implements Runnable {
             }
 
             private void sendStr(String str) {
-//                String out = new String(str.getBytes(StandardCharsets.UTF_8));
                 try {
                     Cipher cipher1 = Cipher.getInstance(cAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.ENCRYPT_MODE, cAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(mySocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
                 } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
@@ -616,7 +615,7 @@ public class Server implements Runnable {
                     Iterator it = usersL.entrySet().iterator();
                     while (it.hasNext()) {
                         Entry ent = (Entry) it.next();
-                        String s = new String(usersL.get((SSLSocket) ent.getKey()).getBytes(StandardCharsets.UTF_8));
+                        String s = new String(usersL.get((SSLSocket) ent.getKey()).getBytes());
                         if (s.trim().length() > 0) {
                             str2 += s + ", ";
                         }

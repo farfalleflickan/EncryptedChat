@@ -5,6 +5,8 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.InputEvent;
@@ -58,6 +60,8 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.text.DefaultCaret;
 
 /**
@@ -68,7 +72,7 @@ public class ClientSwing implements Runnable {
 
     protected String srvIP;
     protected int srvPort;
-    
+
     @Override
     public void run() {
     }
@@ -207,6 +211,7 @@ public class ClientSwing implements Runnable {
             outF = new JTextArea();
             outF.setEditable(false);
             outF.setLineWrap(true);
+            outF.setWrapStyleWord(true);
             DefaultCaret caret1 = (DefaultCaret) outF.getCaret();
             caret1.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
             JScrollPane scrollP1 = new JScrollPane(outF);
@@ -216,6 +221,7 @@ public class ClientSwing implements Runnable {
             JPanel p = new JPanel(new FlowLayout());
             inArea = new JTextArea();
             inArea.setLineWrap(true);
+            inArea.setWrapStyleWord(true);
             inArea.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
             inArea.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), new AbstractAction() {
                 @Override
@@ -491,14 +497,13 @@ public class ClientSwing implements Runnable {
                 sendStr("(STX)" + "listusers" + "(ETX)");
             } else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
-                String out = new String(str.getBytes(StandardCharsets.UTF_8));
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.ENCRYPT_MODE, srvAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(srvSocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(out.getBytes())));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
                 } catch (SSLException ex) {
                     if (running) {

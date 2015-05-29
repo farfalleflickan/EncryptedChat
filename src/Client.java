@@ -401,14 +401,13 @@ public class Client implements Runnable {
                 sendStr("(STX)" + "listusers" + "(ETX)");
             } else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
-                String out = new String(str.getBytes(StandardCharsets.UTF_8));
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.ENCRYPT_MODE, srvAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(srvSocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(out.getBytes())));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
                     sOut.flush();
                 } catch (SSLException ex) {
                     if (running) {
