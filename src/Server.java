@@ -221,7 +221,6 @@ public class Server implements Runnable {
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException ex) {
-                            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                         }
                     }
                 }
@@ -439,7 +438,8 @@ public class Server implements Runnable {
                     try {
                         ObjectInputStream sIn = new ObjectInputStream(mySocket.getInputStream());
                         cRSA = (PublicKey) sIn.readObject();
-
+                    } catch (SSLException | SocketException | EOFException ex) {
+                        System.out.println(mySocket.getInetAddress().getHostName() + " disconnected!");
                     } catch (IOException | ClassNotFoundException ex) {
                         Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                     }
@@ -467,6 +467,8 @@ public class Server implements Runnable {
                     } finally {
                         sOut.flush();
                     }
+                } catch (SSLException | SocketException | EOFException ex) {
+                    System.out.println(mySocket.getInetAddress().getHostName() + " disconnected!");
                 } catch (IOException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -494,6 +496,8 @@ public class Server implements Runnable {
                     } finally {
                         sOut.flush();
                     }
+                } catch (SSLException | SocketException | EOFException ex) {
+                    System.out.println(mySocket.getInetAddress().getHostName() + " disconnected!");
                 } catch (IOException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -525,6 +529,8 @@ public class Server implements Runnable {
                     System.arraycopy(serByteObj3, 0, fObj, serByteObj1.length + serByteObj2.length, serByteObj3.length);
                     System.arraycopy(serByteObj4, 0, fObj, serByteObj1.length + serByteObj2.length + serByteObj3.length, serByteObj4.length);
                     cAES = (SecretKey) new ObjectInputStream(new ByteArrayInputStream(dcipher2.doFinal(fObj))).readObject();
+                } catch (SSLException | SocketException | EOFException ex) {
+                    System.out.println(mySocket.getInetAddress().getHostName() + " disconnected!");
                 } catch (IOException | ClassNotFoundException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
