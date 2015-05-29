@@ -18,6 +18,7 @@ import java.net.SocketException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -320,12 +321,12 @@ public class Server implements Runnable {
                 listConnected();
                 sendStr("(SRV)CONNECTED(SRV)" + timeTag());
                 srvMsg.add("SERVER: " + userID + " has connected to the server! Say hi!" + timeTag());
-
+                
                 Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
                         while (running) {
-                            String input = new String(getStr().getBytes(), StandardCharsets.UTF_8);
+                            String input = getStr();
                             String ogInput = input;
                             try {
                                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(input);
@@ -537,18 +538,17 @@ public class Server implements Runnable {
             }
 
             private void sendStr(String str) {
-                str = new String(str.getBytes(), StandardCharsets.UTF_8);
+//                String out = new String(str.getBytes(StandardCharsets.UTF_8));
                 try {
                     Cipher cipher1 = Cipher.getInstance(cAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.ENCRYPT_MODE, cAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(mySocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes())));
                     sOut.flush();
                 } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-
                     srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
@@ -581,7 +581,7 @@ public class Server implements Runnable {
             }
 
             private void getUserID() {
-                userID = new String(getStr().getBytes(StandardCharsets.UTF_8));
+                userID = getStr();
                 Matcher matcher = Pattern.compile("\\(STX\\)(.+?)\\(ETX\\)").matcher(userID);
                 matcher.find();
                 userID = (String) userID.subSequence(0, matcher.start(0));

@@ -7,6 +7,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -279,7 +280,6 @@ public class Client implements Runnable {
             keyGen.initialize(2048);
             privKey = keyGen.genKeyPair().getPrivate();
             pubKey = keyGen.genKeyPair().getPublic();
-
             System.out.println("All encryption keys have been deleted!");
 
             if (reset) {
@@ -401,23 +401,22 @@ public class Client implements Runnable {
                 sendStr("(STX)" + "listusers" + "(ETX)");
             } else if ((!str.isEmpty() || str != null) && running) {
                 str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
-                str = new String(str.getBytes(), StandardCharsets.UTF_8);
+                String out = new String(str.getBytes(StandardCharsets.UTF_8));
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                     cipher1.init(Cipher.ENCRYPT_MODE, srvAES);
                     cipher2.init(Cipher.ENCRYPT_MODE, AESkey);
                     ObjectOutputStream sOut = new ObjectOutputStream(srvSocket.getOutputStream());
-                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(str.getBytes(StandardCharsets.UTF_8))));
+                    sOut.writeObject(cipher2.doFinal(cipher1.doFinal(out.getBytes())));
                     sOut.flush();
                 } catch (SSLException ex) {
                     if (running) {
                         System.out.println("You have been disconnected from the server!");
-
                         running = false;
                     }
                 } catch (IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException ex) {
-                    Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                    Logger.getLogger(ClientSwing.class.getName()).log(Level.SEVERE, null, ex);
                 }
             }
         }
@@ -428,7 +427,8 @@ public class Client implements Runnable {
                 Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
                 cipher1.init(Cipher.DECRYPT_MODE, srvAES);
                 cipher2.init(Cipher.DECRYPT_MODE, AESkey);
-                return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(srvSocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
+                String str = new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(srvSocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
+                return new String(str.getBytes(Charset.defaultCharset()));
             } catch (SocketException ex) {
                 if (running) {
                     System.out.println("You have been disconnected from the server!");
@@ -441,7 +441,7 @@ public class Client implements Runnable {
                     running = false;
                 }
             } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | IllegalBlockSizeException | BadPaddingException | IOException | ClassNotFoundException ex) {
-                Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(ClientSwing.class.getName()).log(Level.SEVERE, null, ex);
             }
             return "";
         }
