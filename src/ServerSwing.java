@@ -25,7 +25,6 @@ import java.net.SocketException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -371,11 +370,14 @@ public class ServerSwing implements Runnable {
                 KeyPairGenerator keyGen = null;
                 KeyGenerator AESkeyGen = null;
                 try {
-                    SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+                    SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                    SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                    random1.nextBytes(new byte[1337]);
+                    random2.nextBytes(new byte[1337]);
                     keyGen = KeyPairGenerator.getInstance("RSA");
-                    keyGen.initialize(2048, random);
+                    keyGen.initialize(2048, random1);
                     AESkeyGen = KeyGenerator.getInstance("AES");
-                    AESkeyGen.init(128, random);
+                    AESkeyGen.init(128, random2);
                 } catch (NoSuchAlgorithmException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -502,12 +504,14 @@ public class ServerSwing implements Runnable {
                 KeyGenerator AESkeyGen = null;
 
                 try {
-                    SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
-                    keyGen = KeyPairGenerator.getInstance("RSA");
-                    keyGen.initialize(2048, random);
-                    AESkeyGen = KeyGenerator.getInstance("AES");
-                    AESkeyGen.init(128, random);
-                    keyGen.initialize(2048);
+                    SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                random1.nextBytes(new byte[1337]);
+                random2.nextBytes(new byte[1337]);
+                keyGen = KeyPairGenerator.getInstance("RSA");
+                keyGen.initialize(2048, random1);
+                AESkeyGen = KeyGenerator.getInstance("AES");
+                AESkeyGen.init(128, random2);
                     privKey = keyGen.genKeyPair().getPrivate();
                     pubKey = keyGen.genKeyPair().getPublic();
                     AESkey = AESkeyGen.generateKey();
@@ -672,7 +676,7 @@ public class ServerSwing implements Runnable {
                     usersL.put(mySocket, userID);
                 }
             }
-            
+
             private void checkUserID() {
                 int i = 1;
                 if (!usersL.isEmpty()) {
@@ -690,7 +694,7 @@ public class ServerSwing implements Runnable {
                     userIDchanged = true;
                 }
             }
-            
+
             private void listConnected() {
                 String str1 = "Connected users: ";
                 String str2 = "";
@@ -707,7 +711,7 @@ public class ServerSwing implements Runnable {
                 str2 = str2.substring(0, str2.length() - 2);
                 sendStr(str1 + str2 + timeTag());
             }
-            
+
             private String timeTag() {
                 return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
             }

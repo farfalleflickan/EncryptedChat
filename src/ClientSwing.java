@@ -107,11 +107,14 @@ public class ClientSwing implements Runnable {
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
             try {
+                SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                random1.nextBytes(new byte[1337]);
+                random2.nextBytes(new byte[1337]);
                 keyGen = KeyPairGenerator.getInstance("RSA");
-                SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
-                keyGen.initialize(2048, random);
+                keyGen.initialize(2048, random1);
                 AESkeyGen = KeyGenerator.getInstance("AES");
-                AESkeyGen.init(128, random);
+                AESkeyGen.init(128, random2);
             } catch (NoSuchAlgorithmException ex) {
                 Logger.getLogger(ClientSwing.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -143,11 +146,14 @@ public class ClientSwing implements Runnable {
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
             try {
+                SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                random1.nextBytes(new byte[1337]);
+                random2.nextBytes(new byte[1337]);
                 keyGen = KeyPairGenerator.getInstance("RSA");
-                SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
-                keyGen.initialize(2048, random);
+                keyGen.initialize(2048, random1);
                 AESkeyGen = KeyGenerator.getInstance("AES");
-                AESkeyGen.init(128, random);
+                AESkeyGen.init(128, random2);
             } catch (NoSuchAlgorithmException ex) {
                 Logger.getLogger(ClientSwing.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -362,11 +368,14 @@ public class ClientSwing implements Runnable {
             KeyGenerator AESkeyGen = null;
 
             try {
+                SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                random1.nextBytes(new byte[1337]);
+                random2.nextBytes(new byte[1337]);
                 keyGen = KeyPairGenerator.getInstance("RSA");
-                SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
-                keyGen.initialize(2048, random);
+                keyGen.initialize(2048, random1);
                 AESkeyGen = KeyGenerator.getInstance("AES");
-                AESkeyGen.init(128, random);
+                AESkeyGen.init(128, random2);
                 AESkey = AESkeyGen.generateKey();
                 srvAES = AESkeyGen.generateKey();
             } catch (NoSuchAlgorithmException ex) {

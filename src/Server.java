@@ -287,10 +287,13 @@ public class Server implements Runnable {
                 KeyGenerator AESkeyGen = null;
                 try {
                     SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+                    SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
                     keyGen = KeyPairGenerator.getInstance("RSA");
+                    random.nextBytes(new byte[1337]);
+                    random2.nextBytes(new byte[1337]);
                     keyGen.initialize(2048, random);
                     AESkeyGen = KeyGenerator.getInstance("AES");
-                    AESkeyGen.init(128, random);
+                    AESkeyGen.init(128, random2);
                 } catch (NoSuchAlgorithmException ex) {
                     Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
                 }
@@ -418,11 +421,14 @@ public class Server implements Runnable {
                 KeyGenerator AESkeyGen = null;
 
                 try {
-                    SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
+                    SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+                    SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                    random1.nextBytes(new byte[1337]);
+                    random2.nextBytes(new byte[1337]);
                     keyGen = KeyPairGenerator.getInstance("RSA");
-                    keyGen.initialize(2048, random);
+                    keyGen.initialize(2048, random1);
                     AESkeyGen = KeyGenerator.getInstance("AES");
-                    AESkeyGen.init(128, random);
+                    AESkeyGen.init(128, random2);
                     keyGen.initialize(2048);
                     privKey = keyGen.genKeyPair().getPrivate();
                     pubKey = keyGen.genKeyPair().getPublic();
@@ -567,7 +573,6 @@ public class Server implements Runnable {
                     return new String(cipher2.doFinal(cipher1.doFinal((byte[]) new ObjectInputStream(mySocket.getInputStream()).readObject())), StandardCharsets.UTF_8);
                 } catch (SSLException | SocketException | EOFException ex) {
                     System.out.println(mySocket.getInetAddress().getHostName() + "/" + userID + " disconnected!");
-
                     srvMsg.add("SERVER: " + userID + " disconnected!" + timeTag());
                     synchronized (usersL) {
                         usersL.remove(mySocket);
