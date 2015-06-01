@@ -274,7 +274,7 @@ public class ClientSwing implements Runnable {
             Action escapeAction = new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.exit(0);
+                    mainFr.dispatchEvent(new WindowEvent(mainFr, WindowEvent.WINDOW_CLOSING));
                 }
             };
             mainFr.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(escapeKeyStroke, "ESCAPE");
@@ -290,7 +290,6 @@ public class ClientSwing implements Runnable {
             addOut("CLIENT: AES double encrypted sent!");
             running = true;
             sendStr(myID);
-            addOut("ALL SYSTEMS NORMAL!");
             InThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -305,6 +304,7 @@ public class ClientSwing implements Runnable {
                                 myID = s;
                                 addOut("Your username has been changed to: " + myID + " by the server!");
                             } else if (s.contains("(SRV)CONNECTED(SRV)") && connected == false) {
+                                addOut("ALL SYSTEMS NORMAL!");
                                 addOut("You are now securily connected to the server!");
                                 connected = true;
                                 OutThread.start();
@@ -569,7 +569,7 @@ public class ClientSwing implements Runnable {
             Action escapeAction = new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.exit(0);
+                    startFr.dispatchEvent(new WindowEvent(startFr, WindowEvent.WINDOW_CLOSING));
                 }
             };
             startFr.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(escapeKeyStroke, "ESCAPE");
@@ -611,10 +611,32 @@ public class ClientSwing implements Runnable {
                     if (input.matches("[0-9]+")) {
                         srvPort = Integer.parseInt(input);
                         valIn = true;
+                        myID = usrN.getText();
+                        if (myID.isEmpty()) {
+                            valIn = false;
+                            JDialog d = new JDialog(startFr, "", true);
+                            d.setLayout(new BorderLayout());
+                            JButton but = new JButton("OK");
+                            but.addActionListener(new ActionListener() {
+                                @Override
+                                public void actionPerformed(ActionEvent e1) {
+                                    d.dispose();
+                                }
+                            });
+                            JLabel str = new JLabel("Username can not be empty!", SwingConstants.CENTER);
+                            d.setLocationRelativeTo(startFr);
+                            d.setResizable(false);
+                            d.add(str, BorderLayout.NORTH);
+                            d.add(but, BorderLayout.SOUTH);
+                            d.pack();
+                            d.setVisible(true);
+                        } else {
+                            valIn = true;
+                        }
                     } else {
                         valIn = false;
                         JDialog d = new JDialog(startFr, "", true);
-                        d.setLayout(new FlowLayout());
+                        d.setLayout(new BorderLayout());
                         JButton but = new JButton("OK");
                         but.addActionListener(new ActionListener() {
                             @Override
@@ -625,40 +647,17 @@ public class ClientSwing implements Runnable {
                         JLabel str = new JLabel("Invalid port!", SwingConstants.CENTER);
                         d.setLocationRelativeTo(startFr);
                         d.setResizable(false);
-                        d.add(str);
-                        d.add(but);
-                        d.setSize(150, 75);
+                        d.add(str, BorderLayout.NORTH);
+                        d.add(but, BorderLayout.SOUTH);
+                        d.pack();
                         d.setVisible(true);
                     }
-                    myID = usrN.getText();
-                    if (myID.isEmpty()) {
-                        valIn = false;
-                        JDialog d = new JDialog(startFr, "", true);
-                        d.setLayout(new FlowLayout());
-                        JButton but = new JButton("OK");
-                        but.addActionListener(new ActionListener() {
-                            @Override
-                            public void actionPerformed(ActionEvent e1) {
-                                d.dispose();
-                            }
-                        });
-                        JLabel str = new JLabel("Username can not be empty!", SwingConstants.CENTER);
-                        d.setLocationRelativeTo(startFr);
-                        d.setResizable(false);
-                        d.add(str);
-                        d.add(but);
-                        d.setSize(150, 75);
-                        d.setVisible(true);
-                    } else {
-                        valIn = true;
-                    }
-
                 }
             });
             button2.addActionListener(new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    System.exit(0);
+                    startFr.dispatchEvent(new WindowEvent(startFr, WindowEvent.WINDOW_CLOSING));
                 }
             });
             while (!valIn) {
