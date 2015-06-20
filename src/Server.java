@@ -324,7 +324,7 @@ public class Server implements Runnable {
                 listConnected();
                 sendStr("(SRV)CONNECTED(SRV)" + timeTag());
                 srvMsg.add("SERVER: " + userID + " has connected to the server! Say hi!" + timeTag());
-                
+
                 Thread InThread = new Thread(new Runnable() {
                     @Override
                     public void run() {
@@ -631,7 +631,14 @@ public class Server implements Runnable {
             }
 
             private String timeTag() {
-                return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+                String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                int j = new SecureRandom().nextInt(100 - 0 + 1) + 0;
+                char[] text = new char[j];
+                for (int i = 0; i < j; i++) {
+                    text[i] = str.charAt(new SecureRandom().nextInt(str.length()));
+                }
+
+                return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)" + new String(text);
             }
         }
     }

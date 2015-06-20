@@ -505,13 +505,13 @@ public class ServerSwing implements Runnable {
 
                 try {
                     SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
-                SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
-                random1.nextBytes(new byte[1337]);
-                random2.nextBytes(new byte[1337]);
-                keyGen = KeyPairGenerator.getInstance("RSA");
-                keyGen.initialize(2048, random1);
-                AESkeyGen = KeyGenerator.getInstance("AES");
-                AESkeyGen.init(128, random2);
+                    SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
+                    random1.nextBytes(new byte[1337]);
+                    random2.nextBytes(new byte[1337]);
+                    keyGen = KeyPairGenerator.getInstance("RSA");
+                    keyGen.initialize(2048, random1);
+                    AESkeyGen = KeyGenerator.getInstance("AES");
+                    AESkeyGen.init(128, random2);
                     privKey = keyGen.genKeyPair().getPrivate();
                     pubKey = keyGen.genKeyPair().getPublic();
                     AESkey = AESkeyGen.generateKey();
@@ -713,7 +713,14 @@ public class ServerSwing implements Runnable {
             }
 
             private String timeTag() {
-                return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+                String str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                int j = new SecureRandom().nextInt(100 - 0 + 1) + 0;
+                char[] text = new char[j];
+                for (int i = 0; i < j; i++) {
+                    text[i] = str.charAt(new SecureRandom().nextInt(str.length()));
+                }
+                
+                return "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)" + new String(text);
             }
         }
 

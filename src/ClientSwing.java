@@ -60,8 +60,6 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import javax.swing.text.DefaultCaret;
 
 /**
@@ -504,8 +502,15 @@ public class ClientSwing implements Runnable {
                 reset = true;
             } else if (str.matches("!l") || str.matches("!list")) {
                 sendStr("(STX)" + "listusers" + "(ETX)");
-            } else if ((!str.isEmpty() || str != null) && running) {
-                str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+            } else if (!str.isEmpty() && running) {
+                String str2 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                int j = new SecureRandom().nextInt(100 - 0 + 1) + 0;
+                char[] text = new char[j];
+                for (int i = 0; i < j; i++) {
+                    text[i] = str2.charAt(new SecureRandom().nextInt(str2.length()));
+                }
+                str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)" + new String(text);
+                
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
@@ -591,11 +596,11 @@ public class ClientSwing implements Runnable {
             startFr.setSize(325, 200);
             startFr.setLayout(new GridLayout());
             JTextField srvIPF = new JTextField(srvIP, 25);
-            JLabel str1 = new JLabel("   Server ip:");
+            JLabel str1 = new JLabel("Server ip:");
             JTextField srvIPp = new JTextField(Integer.toString(srvPort), 25);
             JLabel str2 = new JLabel("Server port:");
             JTextField usrN = new JTextField(myID, 25);
-            JLabel str3 = new JLabel("  Username:");
+            JLabel str3 = new JLabel("Username:");
             JButton button1 = new JButton("Connect");
             JButton button2 = new JButton("Exit");
 
@@ -678,7 +683,7 @@ public class ClientSwing implements Runnable {
         }
     }
 
-    public static class UDPClient extends Client {
+    public static class UDPClient extends ClientSwing {
 
         private DatagramSocket srvSocket;
 

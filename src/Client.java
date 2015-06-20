@@ -63,14 +63,15 @@ public class Client implements Runnable {
             connected = false;
             KeyPairGenerator keyGen = null;
             KeyGenerator AESkeyGen = null;
-            try {SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
+            try {
+                SecureRandom random1 = SecureRandom.getInstance("SHA1PRNG");
                 SecureRandom random2 = SecureRandom.getInstance("SHA1PRNG");
                 random1.nextBytes(new byte[1337]);
                 random2.nextBytes(new byte[1337]);
                 keyGen = KeyPairGenerator.getInstance("RSA");
                 keyGen.initialize(2048, random1);
                 AESkeyGen = KeyGenerator.getInstance("AES");
-                AESkeyGen.init(128, random2);                
+                AESkeyGen.init(128, random2);
             } catch (NoSuchAlgorithmException ex) {
                 Logger.getLogger(Client.class.getName()).log(Level.SEVERE, null, ex);
             }
@@ -407,8 +408,15 @@ public class Client implements Runnable {
                 reset = true;
             } else if (str.matches("!l") || str.matches("!list")) {
                 sendStr("(STX)" + "listusers" + "(ETX)");
-            } else if ((!str.isEmpty() || str != null) && running) {
-                str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)";
+            } else if (!str.isEmpty() && running) {
+                String str2 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+                int j = new SecureRandom().nextInt(100 - 0 + 1) + 0;
+                char[] text = new char[j];
+                for (int i = 0; i < j; i++) {
+                    text[i] = str2.charAt(new SecureRandom().nextInt(str2.length()));
+                }
+                str += "(STX)" + (System.currentTimeMillis() / 1000L) + "(ETX)" + new String(text);
+                
                 try {
                     Cipher cipher1 = Cipher.getInstance(srvAES.getAlgorithm());
                     Cipher cipher2 = Cipher.getInstance(AESkey.getAlgorithm());
